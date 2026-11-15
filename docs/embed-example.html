@@ -1,0 +1,12 @@
+<!-- 貼到 Blogger「HTML 檢視」/ WordPress「自訂 HTML」區塊 -->
+<iframe id="aetf" src="https://ycj0903-eng.github.io/active-etf-tracker/"
+        style="width:100%;border:0;min-height:1400px;border-radius:12px;overflow:hidden"
+        loading="lazy" title="主動式ETF 共識持股雷達"></iframe>
+<script>
+  // 依內容自動調整 iframe 高度
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "aetf-height") {
+      document.getElementById("aetf").style.height = e.data.height + "px";
+    }
+  });
+</script>
