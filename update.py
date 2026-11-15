@@ -131,12 +131,20 @@ def _to_float(x) -> float | None:
 def parse_moneydj(html: str) -> tuple[list[dict], str | None]:
     """解析 MoneyDJ 全部持股頁。以「名稱(代號.TW)」辨識台股，忽略海外股與現金。"""
     date = None
-    m = re.search(r"資料日期[:：]\s*(\d{4}/\d{1,2}/\d{1,2})", html)
+    plain = re.sub(r"<[^>]+>", " ", html).replace("&nbsp;", " ")
+    m = re.search(r"資料日期\s*[:：]?\s*(\d{4}/\d{1,2}/\d{1,2})", plain)
     if m:
         date = m.group(1).replace("/", "-")
-    try:
-        tables = pd.read_html(StringIO(html))
-    except ValueError:
+    tables = None
+    for flavor in ("lxml", "bs4"):          # lxml 解析失敗時改用 BeautifulSoup/html5lib
+        try:
+            tables = pd.read_html(StringIO(html), flavor=flavor)
+            break
+        except ValueError:                  # 頁面上沒有表格
+            return [], date
+        except Exception as e:  # noqa: BLE001
+            log(f"  read_html({flavor}) 失敗：{e}")
+    if tables is None:
         return [], date
 
     rows: list[dict] = []
