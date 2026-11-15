@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>主動式ETF 共識持股雷達｜每日盤後更新</title>
+<meta name="description" content="統計所有台股主動式ETF的成分股，依被持有檔數排名前30名，標示多頭排列與當日站上月線個股，每日盤後更新。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1020; --bg2:#111831; --card:#141c38; --line:#243056; --text:#e8ecf8; --mute:#8b96b8;
+  --up:#ff4d5e; --down:#22c58b; --gold:#ffc53d; --blue:#5b8cff; --violet:#a87bff;
+  --bull-bg:linear-gradient(90deg,rgba(255,77,94,.16),rgba(255,77,94,.03) 60%,transparent);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC",system-ui,-apple-system,"Microsoft JhengHei",sans-serif}
+body{background:radial-gradient(1200px 500px at 10% -10%,#1d2a5c 0,transparent 60%),radial-gradient(900px 400px at 100% 0,#3a1a4a 0,transparent 55%),var(--bg)}
+.num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 18px 40px}
+a{color:var(--blue)}
+
+/* header */
+.hero{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+.eyebrow{font-size:12px;letter-spacing:.2em;color:var(--gold);font-weight:700}
+h1{margin:6px 0 4px;font-size:clamp(26px,4.2vw,40px);font-weight:900;line-height:1.15;
+   background:linear-gradient(90deg,#fff,#c9d6ff 50%,#ffd27a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mute);font-size:14px}
+.stamp{font-size:13px;color:var(--mute);text-align:right}
+.stamp b{color:var(--text)}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--down);margin-right:6px;box-shadow:0 0 0 0 rgba(34,197,139,.6);animation:ping 2s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(34,197,139,.6)}80%,100%{box-shadow:0 0 0 10px rgba(34,197,139,0)}}
+.sample{background:#3b2a00;border:1px solid #7a5800;color:#ffd979;padding:8px 12px;border-radius:10px;font-size:13px;margin-bottom:16px}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:linear-gradient(160deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi .l{font-size:12px;color:var(--mute)}
+.kpi .v{font-size:30px;font-weight:700;margin-top:2px}
+.kpi .v small{font-size:13px;color:var(--mute);font-weight:500;margin-left:4px}
+.kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;opacity:.18;background:var(--c,var(--blue))}
+
+/* alert */
+.alert{border-radius:18px;padding:16px 18px;margin-bottom:22px;border:1px solid rgba(255,197,61,.45);
+  background:linear-gradient(120deg,rgba(255,197,61,.16),rgba(255,77,94,.10));position:relative;overflow:hidden}
+.alert::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%);animation:shine 3.5s infinite}
+@keyframes shine{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.alert h2{margin:0 0 10px;font-size:18px;display:flex;align-items:center;gap:8px}
+.alert h2 .bolt{font-size:22px;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.35}}
+.alert .none{color:var(--mute);font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;position:relative}
+.xchip{background:rgba(11,16,32,.65);border:1px solid rgba(255,197,61,.5);border-radius:12px;padding:8px 12px;font-size:14px;display:flex;gap:10px;align-items:center}
+.xchip{flex-wrap:wrap;row-gap:2px}
+.xchip span{white-space:nowrap}
+.alert h2{flex-wrap:wrap}
+.xchip .c{color:var(--gold);font-weight:700}
+.xchip .h{font-size:12px;color:var(--mute)}
+.xchip.top{border-color:var(--gold);box-shadow:0 0 18px rgba(255,197,61,.25)}
+
+/* toolbar */
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:6px 0 12px}
+.bar h2{margin:0;font-size:20px}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.f{background:var(--card);border:1px solid var(--line);color:var(--text);padding:7px 13px;border-radius:999px;font-size:13px;cursor:pointer;font-family:inherit}
+.f.on{background:var(--blue);border-color:var(--blue)}
+.f[data-f=bull].on{background:var(--up);border-color:var(--up)}
+.f[data-f=cross].on{background:var(--gold);border-color:var(--gold);color:#221a00}
+.search{background:var(--card);border:1px solid var(--line);color:var(--text);padding:7px 12px;border-radius:999px;font-size:13px;width:150px;font-family:inherit}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--mute);margin-bottom:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* ranking */
+.list{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:44px minmax(120px,1.2fr) minmax(150px,2fr) 110px 120px 130px;gap:12px;align-items:center;
+  background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;cursor:pointer;transition:transform .15s,border-color .15s;position:relative;
+  animation:rise .5s both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+.row:hover{transform:translateY(-1px);border-color:#3a4a80}
+.row.bull{background:var(--bull-bg),var(--card);border-color:rgba(255,77,94,.45)}
+.row.bull::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:4px;background:var(--up)}
+.row.cross{box-shadow:0 0 0 1px var(--gold),0 0 22px rgba(255,197,61,.22)}
+.rk{font-size:20px;font-weight:700;color:var(--mute);text-align:center}
+.row:nth-child(-n+3) .rk{color:var(--gold)}
+.nm .code{font-size:12px;color:var(--mute)}
+.nm .name{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb{display:flex;align-items:center;gap:10px}
+.track{flex:1;height:12px;background:#0d1430;border-radius:99px;overflow:hidden}
+.fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--violet));width:0;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.row.bull .fill{background:linear-gradient(90deg,#ff7a45,var(--up))}
+.hn{min-width:58px;font-size:14px}
+.hn b{font-size:18px}
+.dl{font-size:11px;padding:1px 5px;border-radius:6px;margin-left:4px}
+.dl.p{background:rgba(255,77,94,.18);color:var(--up)} .dl.m{background:rgba(34,197,139,.18);color:var(--down)}
+.px{text-align:right}
+.px .c{font-size:16px;font-weight:700}
+.px .g{font-size:12px}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--mute)}
+.tags{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.tag{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:7px;white-space:nowrap}
+.t-bull{background:var(--up);color:#fff}
+.t-cross{background:var(--gold);color:#221a00;animation:blink 1.4s infinite}
+.t-above{background:rgba(91,140,255,.18);color:#a9c1ff}
+.t-below{background:rgba(139,150,184,.15);color:var(--mute)}
+svg.sp{width:130px;height:40px;display:block}
+.detail{grid-column:1/-1;display:none;padding-top:8px;border-top:1px dashed var(--line);margin-top:4px}
+.row.open .detail{display:block}
+.detail .ma{font-size:12.5px;color:var(--mute);margin-bottom:8px}
+.detail .ma b{color:var(--text)}
+.ec{display:inline-flex;gap:6px;align-items:center;background:#0d1430;border:1px solid var(--line);border-radius:9px;padding:4px 9px;margin:0 6px 6px 0;font-size:12.5px}
+.ec .w{color:var(--gold)}
+
+/* bull grid */
+section{margin-top:30px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px}
+.card{background:var(--bull-bg),var(--card);border:1px solid rgba(255,77,94,.35);border-radius:14px;padding:12px}
+.card .t{display:flex;justify-content:space-between;align-items:baseline}
+.card .n{font-weight:700}
+.card .m{font-size:12px;color:var(--mute);margin-top:6px}
+.card.cross{box-shadow:0 0 0 1px var(--gold)}
+.etfs{display:flex;flex-wrap:wrap;gap:8px}
+.etf{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px}
+.etf b{color:var(--blue);margin-right:6px}
+.muted{color:var(--mute);font-size:13px}
+footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--mute);line-height:1.8}
+
+@media (max-width:820px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .row{grid-template-columns:34px 1fr 96px;gap:8px 10px}
+  .row .hb{grid-column:2/4;order:5}
+  .row .tags{grid-column:2/4;order:6;flex-direction:row;flex-wrap:wrap}
+  .row .spk{display:none}
+  .rk{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <div class="eyebrow">ACTIVE ETF CONSENSUS RADAR</div>
+      <h1>主動式ETF 共識持股雷達</h1>
+      <div class="sub">經理人們都在買什麼？統計全部台股主動式ETF成分股，依「被幾檔ETF持有」排名</div>
+    </div>
+    <div class="stamp"><span class="live"></span>每日盤後更新<br>股價日 <b class="num" id="pdate">—</b>　更新 <span class="num" id="upd">—</span></div>
+  </div>
+
+  <div id="sample" class="sample" hidden>⚠ 目前顯示的是<b>範例資料</b>（版面預覽用），第一次自動更新後會換成真實資料。</div>
+
+  <div class="kpis">
+    <div class="kpi" style="--c:var(--blue)"><div class="l">追蹤主動式ETF</div><div class="v num" id="k1">—<small>檔</small></div></div>
+    <div class="kpi" style="--c:var(--violet)"><div class="l">涵蓋台股成分股</div><div class="v num" id="k2">—<small>檔</small></div></div>
+    <div class="kpi" style="--c:var(--up)"><div class="l">前30名 多頭排列</div><div class="v num" id="k3">—<small>檔</small></div></div>
+    <div class="kpi" style="--c:var(--gold)"><div class="l">今日站上月線</div><div class="v num" id="k4">—<small>檔</small></div></div>
+  </div>
+
+  <div class="alert" id="alert">
+    <h2><span class="bolt">⚡</span>今日收盤站上月線<span class="muted" style="font-weight:400">（昨日收盤在20MA之下、今日收盤站上20MA）</span></h2>
+    <div class="chips" id="xlist"><span class="none">載入中…</span></div>
+  </div>
+
+  <div class="bar">
+    <h2>共識持股 Top 30</h2>
+    <div class="filters">
+      <button class="f on" data-f="all">全部</button>
+      <button class="f" data-f="bull">多頭排列</button>
+      <button class="f" data-f="cross">站上月線</button>
+      <input class="search" id="q" placeholder="搜尋代號／名稱">
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--up)"></i>多頭排列 5MA＞20MA＞60MA</span>
+    <span><i style="background:var(--gold)"></i>今日站上月線</span>
+    <span><i style="background:linear-gradient(90deg,var(--blue),var(--violet))"></i>長條＝持有檔數</span>
+    <span>走勢圖：近60日收盤（虛線為月線）・點擊列可看持有的ETF</span>
+  </div>
+  <div class="list" id="list"></div>
+
+  <section>
+    <div class="bar"><h2>全部成分股中的多頭排列 <span class="muted num" id="bc"></span></h2></div>
+    <div class="grid" id="bull"></div>
+  </section>
+
+  <section>
+    <div class="bar"><h2>本次追蹤的主動式ETF</h2></div>
+    <div class="etfs" id="etfs"></div>
+  </section>
+
+  <footer>
+    資料來源：FinMind（ETF清單、股價）、MoneyDJ 理財網（ETF每日持股）。持股為各投信每日公告，可能較股價晚一個交易日。<br>
+    多頭排列＝5日均線＞20日均線＞60日均線；站上月線＝昨日收盤 ≤ 20MA 且 今日收盤 ＞ 20MA。<br>
+    本頁僅為資訊整理，不構成任何投資建議，投資前請自行判斷並承擔風險。
+  </footer>
+</div>
+
+<script>
+const DATA_URL = "data/latest.json";
+const $ = s => document.querySelector(s);
+const fmt = (n, d = 2) => n == null ? "—" : Number(n).toLocaleString("zh-TW", {minimumFractionDigits: d, maximumFractionDigits: d});
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "flat";
+const sign = v => v == null ? "—" : (v > 0 ? "▲" : v < 0 ? "▼" : "") + Math.abs(v).toFixed(2) + "%";
+let D, filter = "all", query = "";
+
+function spark(s, m) {
+  if (!s || s.length < 2) return "";
+  const W = 130, H = 40, all = s.concat((m || []).filter(x => x != null));
+  const lo = Math.min(...all), hi = Math.max(...all), r = hi - lo || 1;
+  const pt = (v, i, n) => `${(i / (n - 1) * W).toFixed(1)},${(H - 3 - (v - lo) / r * (H - 6)).toFixed(1)}`;
+  const line = s.map((v, i) => pt(v, i, s.length)).join(" ");
+  const ma = (m || []).map((v, i) => v == null ? null : pt(v, i, m.length)).filter(Boolean).join(" ");
+  const c = s[s.length - 1] >= s[0] ? "var(--up)" : "var(--down)";
+  const id = "g" + Math.random().toString(36).slice(2, 8);
+  return `<svg class="sp" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="0,${H} ${line} ${W},${H}" fill="url(#${id})"/>
+    ${ma ? `<polyline points="${ma}" fill="none" stroke="var(--gold)" stroke-width="1" stroke-dasharray="3 2" opacity=".8"/>` : ""}
+    <polyline points="${line}" fill="none" stroke="${c}" stroke-width="1.6"/></svg>`;
+}
+
+function tags(s) {
+  let t = "";
+  if (s.bull) t += `<span class="tag t-bull">多頭排列</span>`;
+  if (s.cross_up) t += `<span class="tag t-cross">⚡ 站上月線</span>`;
+  else if (s.above_ma20) t += `<span class="tag t-above">月線之上</span>`;
+  else if (s.ma20 != null) t += `<span class="tag t-below">月線之下</span>`;
+  return t;
+}
+
+function renderList() {
+  const max = D.etf_count || Math.max(...D.top.map(s => s.holders));
+  const rows = D.top.filter(s =>
+    (filter === "all" || (filter === "bull" && s.bull) || (filter === "cross" && s.cross_up)) &&
+    (!query || s.code.includes(query) || s.name.includes(query)));
+  $("#list").innerHTML = rows.length ? rows.map((s, i) => `
+    <div class="row ${s.bull ? "bull" : ""} ${s.cross_up ? "cross" : ""}" style="animation-delay:${i * 25}ms">
+      <div class="rk num">${s.rank}</div>
+      <div class="nm"><div class="code num">${s.code}</div><div class="name">${s.name}</div></div>
+      <div class="hb"><div class="track"><div class="fill" data-w="${(s.holders / max * 100).toFixed(1)}"></div></div>
+        <div class="hn num"><b>${s.holders}</b> 檔${s.delta ? `<span class="dl ${s.delta > 0 ? "p" : "m"}">${s.delta > 0 ? "+" : ""}${s.delta}</span>` : ""}</div></div>
+      <div class="px num"><div class="c ${cls(s.chg)}">${fmt(s.close)}</div><div class="g ${cls(s.chg)}">${sign(s.chg)}</div></div>
+      <div class="tags">${tags(s)}</div>
+      <div class="spk">${spark(s.spark, s.spark_ma20)}</div>
+      <div class="detail">
+        <div class="ma num">5MA <b>${fmt(s.ma5)}</b>　20MA <b>${fmt(s.ma20)}</b>　60MA <b>${fmt(s.ma60)}</b>　｜　合計權重 <b>${fmt(s.weight_sum)}%</b></div>
+        ${s.etfs.map(e => `<span class="ec"><b class="num">${e.code}</b>${e.name}<span class="w num">${e.weight == null ? "" : fmt(e.weight) + "%"}</span></span>`).join("")}
+      </div>
+    </div>`).join("") : `<div class="muted" style="padding:20px">沒有符合條件的個股</div>`;
+  requestAnimationFrame(() => document.querySelectorAll(".fill").forEach(f => f.style.width = f.dataset.w + "%"));
+  document.querySelectorAll(".row").forEach(r => r.onclick = () => { r.classList.toggle("open"); postHeight(); });
+  postHeight();
+}
+
+function render() {
+  $("#sample").hidden = !D.sample;
+  $("#pdate").textContent = D.price_date || "—";
+  $("#upd").textContent = D.updated_at || "—";
+  $("#k1").firstChild.textContent = D.etf_count;
+  $("#k2").firstChild.textContent = D.stock_count;
+  $("#k3").firstChild.textContent = D.top.filter(s => s.bull).length;
+  $("#k4").firstChild.textContent = D.cross_up_all.length;
+
+  const x = D.cross_up_all;
+  $("#xlist").innerHTML = x.length ? x.map(s => `
+    <div class="xchip ${s.in_top ? "top" : ""}">
+      <span class="c num">${s.code}</span><span>${s.name}</span>
+      <span class="num ${cls(s.chg)}">${fmt(s.close)} ${sign(s.chg)}</span>
+      <span class="h">${s.holders}檔持有${s.in_top ? "・Top30" : ""}${s.bull ? "・多頭" : ""}</span>
+    </div>`).join("") : `<span class="none">今日沒有成分股由下往上站上月線</span>`;
+
+  $("#bc").textContent = `（${D.bull_all.length} 檔）`;
+  $("#bull").innerHTML = D.bull_all.map(s => `
+    <div class="card ${s.cross_up ? "cross" : ""}">
+      <div class="t"><span class="n">${s.name}</span><span class="num muted">${s.code}</span></div>
+      <div class="t" style="margin-top:6px"><span class="num ${cls(s.chg)}" style="font-weight:700">${fmt(s.close)}</span><span class="num ${cls(s.chg)}" style="font-size:12px">${sign(s.chg)}</span></div>
+      <div class="m">${s.holders} 檔ETF持有${s.in_top ? `・排名 #${s.rank}` : ""}${s.cross_up ? "・⚡站上月線" : ""}</div>
+    </div>`).join("") || `<span class="muted">目前沒有多頭排列的成分股</span>`;
+
+  $("#etfs").innerHTML = D.etfs.map(e => `<span class="etf"><b class="num">${e.code}</b>${e.name}<span class="muted num"> ${e.n}檔</span></span>`).join("")
+    + (D.failed_etfs?.length ? `<span class="muted">（無台股持股或本次未取得：${D.failed_etfs.join("、")}）</span>` : "");
+  renderList();
+}
+
+document.querySelectorAll(".f").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".f").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); filter = b.dataset.f; renderList();
+});
+$("#q").oninput = e => { query = e.target.value.trim(); renderList(); };
+
+// 嵌入 blog 時讓 iframe 自動調整高度
+function postHeight() {
+  if (window.parent !== window) setTimeout(() =>
+    window.parent.postMessage({type: "aetf-height", height: document.documentElement.scrollHeight}, "*"), 60);
+}
+window.addEventListener("resize", postHeight);
+
+fetch(DATA_URL + "?t=" + Date.now()).then(r => r.json()).then(d => { D = d; render(); })
+  .catch(e => $("#list").innerHTML = `<div class="muted">資料載入失敗：${e}</div>`);
+</script>
+</body>
+</html>
