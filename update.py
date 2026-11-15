@@ -181,7 +181,7 @@ def fetch_holdings(etf: str) -> tuple[list[dict], str | None]:
     for suffix in order:
         url = f"https://www.moneydj.com/ETF/X/Basic/Basic0007b.xdjhtm?etfid={etf}.{suffix}"
         try:
-            html = get(url).text
+            html = get(url).content.decode("utf-8", errors="replace")  # MoneyDJ 未宣告編碼，強制 UTF-8
         except Exception as e:  # noqa: BLE001
             log(f"  {etf}.{suffix} 讀取失敗：{e}")
             continue
