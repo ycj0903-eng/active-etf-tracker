@@ -1,4 +1,6 @@
 pandas>=2.0
 lxml
+html5lib
+beautifulsoup4
 requests
 yfinance>=0.2.40
