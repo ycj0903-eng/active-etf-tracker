@@ -1,0 +1,40 @@
+name: 每日盤後更新主動式ETF資料
+
+on:
+  schedule:
+    # 週一到週五 台灣時間 19:30（UTC 11:30）。投信持股約 17:00 後陸續公告
+    - cron: "30 11 * * 1-5"
+    # 21:30 再跑一次補抓晚公告的 ETF（同交易日不會重複推播）
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch:   # 可在 Actions 頁面手動執行
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 抓資料並計算
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          MIN_WEIGHT: ${{ vars.MIN_WEIGHT }}
+          PAGE_URL: ${{ vars.PAGE_URL }}
+          EXTRA_ETFS: ${{ vars.EXTRA_ETFS }}
+          EXCLUDE_ETFS: ${{ vars.EXCLUDE_ETFS }}
+        run: python update.py
+      - name: 提交更新後的資料
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data
+          git diff --cached --quiet || git commit -m "data: $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          git push
