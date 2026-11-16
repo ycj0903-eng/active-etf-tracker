@@ -42,17 +42,18 @@ docs/embed-example.html      嵌入 blog 的 iframe 範例
 | 項目 | 定義 |
 |---|---|
 | 主動式ETF | FinMind 股票清單中代號 `00xxxA` 的主動式ETF（含上櫃；`D` 結尾債券型不納入） |
-| 成分股 | MoneyDJ 每日全部持股（Basic0007b）中的台股；海外股、期貨（.TF）、現金不計；權重 < 0.01% 的零星部位不計（`MIN_WEIGHT` 可調） |
+| 成分股 | MoneyDJ 每日全部持股（Basic0007b）中的台股；海外股、期貨（.TF）、現金不計；只計入「該股占ETF權重超過 1%」的持股（`MIN_WEIGHT` 可調） |
 | 股價 | FinMind 日收盤（上市櫃皆可），抓不到的再用 Yahoo Finance 補 |
 | 排名 | 持有檔數多者在前；同檔數時以各ETF權重加總較高者在前 |
 | 多頭排列 | 5MA ＞ 20MA ＞ 60MA（日收盤價簡單均線） |
 | 今日站上月線 | 昨日收盤 ≤ 昨日 20MA，且今日收盤 ＞ 今日 20MA（由下往上突破）；掃描**全部成分股**，Top30 內的會加 ⭐ |
+| 站上20日最高點 | 今日收盤 ＞ 前 20 個交易日（不含今日）的最高價；掃描全部成分股 |
 | 檔數變化 | 與上一次更新相比，持有該股的ETF檔數 +/-（網頁上小紅綠標籤） |
 
 ## 常見調整
 
 - **加入／排除某檔 ETF**：Repo Variables 設 `EXTRA_ETFS=00999A,00403A` 或 `EXCLUDE_ETFS=00983A`
-- **零星部位門檻**：Repo Variables 設 `MIN_WEIGHT=0`（全部計入）或 `0.5`（只算有實質權重的）
+- **權重門檻**：Repo Variables 設 `MIN_WEIGHT`（預設 1，即權重超過 1% 才計入；設 0 則全部計入）
 - **前 N 名**：改 `update.py` 的 `TOP_N`
 - **更新時間**：改 `.github/workflows/update.yml` 的 cron（UTC 時間，台灣時間減 8 小時）
 - **在自己電腦測試**：`pip install -r requirements.txt` 後 `python update.py`，
