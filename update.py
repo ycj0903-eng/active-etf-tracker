@@ -17,7 +17,7 @@
   EXTRA_ETFS                              額外加入的 ETF 代號，逗號分隔，例如 "00999A,00403A"
   EXCLUDE_ETFS                            排除的 ETF 代號，逗號分隔
   FINMIND_TOKEN                           FinMind 免費會員 token（額度 300→600 次/小時，建議設定）
-  MIN_WEIGHT                              權重低於此值(%)的零星部位不計入持有，預設 0.01
+  MIN_WEIGHT                              個股占該ETF權重須「超過」此值(%)才計入持有，預設 1
 """
 from __future__ import annotations
 
@@ -38,7 +38,8 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "docs" / "data"
 HIST_DIR = DATA_DIR / "history"
 TOP_N = 30
-MIN_WEIGHT = float(os.getenv("MIN_WEIGHT") or "0.01")
+MIN_WEIGHT = float(os.getenv("MIN_WEIGHT") or "1")
+HIGHS: dict[str, pd.Series] = {}   # 代號 -> 每日最高價（算 20 日新高用）
 FINMIND = "https://api.finmindtrade.com/api/v4/data"
 STOCK_MARKET: dict[str, str] = {}   # 代號 -> TW / TWO（由 FinMind 股票清單得到）
 UA = {
@@ -204,8 +205,9 @@ def download_prices(stocks: dict[str, str]) -> dict[str, pd.Series]:
             rows = [r for r in finmind({"dataset": "TaiwanStockPrice", "data_id": code,
                                         "start_date": start}) if r.get("close")]
             if len(rows) >= 2:
-                out[code] = pd.Series([float(r["close"]) for r in rows],
-                                      index=pd.to_datetime([r["date"] for r in rows]))
+                idx = pd.to_datetime([r["date"] for r in rows])
+                out[code] = pd.Series([float(r["close"]) for r in rows], index=idx)
+                HIGHS[code] = pd.Series([float(r.get("max") or r["close"]) for r in rows], index=idx)
         except Exception as e:  # noqa: BLE001
             fails += 1
             log(f"  FinMind {code} 失敗：{e}")
@@ -230,13 +232,17 @@ def _yahoo_prices(stocks: dict[str, str]) -> dict[str, pd.Series]:
                              group_by="ticker", threads=True, progress=False)
             for t in chunk:
                 try:
-                    s = (df[t]["Close"] if len(chunk) > 1 else df["Close"]).dropna()
+                    sub = df[t] if len(chunk) > 1 else df
+                    s, hi = sub["Close"], sub["High"]
                     if isinstance(s, pd.DataFrame):
-                        s = s.iloc[:, 0]
+                        s, hi = s.iloc[:, 0], hi.iloc[:, 0]
+                    s = s.dropna()
+                    hi = hi.reindex(s.index).fillna(s)
                 except Exception:  # noqa: BLE001
                     continue
                 if len(s) >= 2:
                     out[t.split(".")[0]] = s
+                    HIGHS[t.split(".")[0]] = hi
 
     batch([f"{c}.{m}" for c, m in stocks.items()])
     # 市場別抓錯（上市/上櫃）時換另一個後綴再試
@@ -245,7 +251,8 @@ def _yahoo_prices(stocks: dict[str, str]) -> dict[str, pd.Series]:
     return out
 
 
-def indicators(close: pd.Series) -> dict:
+def indicators(close: pd.Series, high: pd.Series | None = None) -> dict:
+    high = close if high is None else high.reindex(close.index).fillna(close)
     ma5, ma20, ma60 = (close.rolling(n).mean() for n in (5, 20, 60))
     c, p = float(close.iloc[-1]), float(close.iloc[-2])
     res = {
@@ -261,6 +268,13 @@ def indicators(close: pd.Series) -> dict:
     m20_prev = ma20.iloc[-2]
     res["above_ma20"] = bool(res["ma20"] is not None and c > res["ma20"])
     res["cross_up"] = bool(res["above_ma20"] and pd.notna(m20_prev) and p <= float(m20_prev))
+    # 收盤站上 20 日最高點：今日收盤 > 前 20 個交易日（不含今日）的最高價
+    if len(high) >= 21:
+        h20 = float(high.iloc[-21:-1].max())
+        res["high20"] = round(h20, 2)
+        res["new_high20"] = bool(c > h20)
+    else:
+        res["high20"], res["new_high20"] = None, False
     return res
 
 
@@ -293,6 +307,9 @@ def build_message(data: dict) -> str:
                          f"  {s['holders']}檔持有{bull}")
     else:
         lines.append("今日無成分股由下往上站上月線")
+    hi = data.get("high20_all", [])
+    lines += ["", f"🚀 <b>收盤站上20日最高點（{len(hi)} 檔）</b>"]
+    lines.append("、".join(f"{'⭐' if s.get('in_top') else ''}{s['code']}{s['name']}" for s in hi[:25]) or "無")
     top_bull = [s for s in data["top"] if s.get("bull")]
     lines += ["", f"🔥 前{TOP_N}名中多頭排列：{len(top_bull)} 檔"]
     lines.append("、".join(f"{s['code']}{s['name']}" for s in top_bull[:15]) or "無")
@@ -313,7 +330,7 @@ def main():
     etf_info, failed, hold_dates = [], [], []
     for code, name in etfs.items():
         rows, date = fetch_holdings(code)
-        tw_rows = [r for r in rows if r["weight"] is None or r["weight"] >= MIN_WEIGHT]
+        tw_rows = [r for r in rows if r["weight"] is not None and r["weight"] > MIN_WEIGHT]
         log(f"  {code} {name}: {len(tw_rows)} 檔台股 (資料日 {date})")
         if not tw_rows:
             failed.append(code)
@@ -352,7 +369,7 @@ def main():
         h["weight_sum"] = round(sum(e["weight"] or 0 for e in h["etfs"]), 2)
         h["delta"] = h["holders"] - prev_count[code] if code in prev_count else None
         if code in prices:
-            h.update(indicators(prices[code]))
+            h.update(indicators(prices[code], HIGHS.get(code)))
         stocks.append(h)
 
     stocks.sort(key=lambda s: (-s["holders"], -s["weight_sum"]))
@@ -363,7 +380,8 @@ def main():
 
     def slim(s):
         return {k: s.get(k) for k in ("code", "name", "holders", "close", "chg", "ma5", "ma20",
-                                      "ma60", "bull", "cross_up", "in_top", "rank")}
+                                      "ma60", "bull", "cross_up", "new_high20", "high20",
+                                      "in_top", "rank")}
 
     price_dates = [s["price_date"] for s in stocks if s.get("price_date")]
     price_date = max(price_dates) if price_dates else now.strftime("%Y-%m-%d")
@@ -379,6 +397,8 @@ def main():
         "top": stocks[:TOP_N],
         "bull_all": [slim(s) for s in stocks if s.get("bull")],
         "cross_up_all": [slim(s) for s in stocks if s.get("cross_up")],
+        "high20_all": [slim(s) for s in stocks if s.get("new_high20")],
+        "min_weight": MIN_WEIGHT,
         "holder_counts": {s["code"]: s["holders"] for s in stocks},
     }
 
@@ -388,7 +408,7 @@ def main():
     (DATA_DIR / "latest.json").write_text(text, "utf-8")
     (HIST_DIR / f"{price_date}.json").write_text(text, "utf-8")
     log(f"完成：前{TOP_N}名中多頭 {sum(s.get('bull', False) for s in data['top'])} 檔，"
-        f"今日站上月線 {len(data['cross_up_all'])} 檔")
+        f"今日站上月線 {len(data['cross_up_all'])} 檔，站上20日高 {len(data['high20_all'])} 檔")
 
     # 同一交易日重複執行（或假日）不重複推播
     if prev.get("price_date") == price_date and not os.getenv("FORCE_NOTIFY"):
